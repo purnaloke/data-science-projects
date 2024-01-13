@@ -1,0 +1,181 @@
+---
+title: "Churn Modelling"
+author: "Purnaloke Sengupta"
+date: "2023-06-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(MASS)
+library(tree)
+library(randomForest)
+library(e1071)
+library(gbm)
+library(GGally)
+library(caret)
+```
+
+```{r}
+set.seed(1234)
+```
+
+
+```{r}
+d=read.csv("Churn_Modelling.csv")
+
+d$Geography=as.factor(d$Geography)
+d$Gender=as.factor(d$Gender)
+d$HasCrCard=as.factor(d$HasCrCard)
+d$IsActiveMember=as.factor(d$IsActiveMember)
+
+d$Exited=as.factor(d$Exited)
+head(d)
+```
+
+```{r}
+cl=d[,-c(1,2,3)]
+
+y=cl$Exited
+X=cl[,-11]
+```
+
+```{r}
+ggpairs(cl)
+```
+
+## Dividing into training and testing datasets
+
+```{r}
+samp=sample(nrow(cl),0.8*nrow(cl))
+train=cl[samp,]
+test=cl[-samp,]
+```
+
+## Logistic Regression
+
+```{r}
+mod.log=glm(Exited~., data=train, family="binomial")
+summary(mod.log)
+```
+
+```{r}
+p1=predict(mod.log, test, type="response")
+est=ifelse(p1>0.5,1,0)
+y.test=test$Exited
+
+mean(y.test==est)
+```
+
+## k Nearest Neighbours
+
+```{r}
+mod.knn=knn3(Exited~., data=train)
+obj=predict(mod.knn, newdata = test)
+
+p.knn=0
+
+for( i in 1:nrow(obj))
+{
+  p.knn[i]=ifelse(obj[i,1]>obj[i,2], 0, 1)
+}
+
+paste("The classification rate for 5-NN is",mean(p.knn==y.test)*100,"%")    
+```
+
+## Naive Bayes
+
+```{r}
+mod.nb=naiveBayes(Exited~., data=train)
+p.nb=predict(mod.nb, newdata=test)
+
+paste("The classification rate for Naive Bayes is",mean(p.nb==y.test)*100,"%")   
+```
+
+
+## Linear Discriminant Analysis
+
+```{r}
+mod.lda=lda(Exited~., data=train)
+p2=predict(mod.lda, test)
+
+y.test=test$Exited
+
+paste("The classification rate for LDA is", mean(p2$class==y.test)*100,"%")  
+```
+
+## Fitting a classification tree
+
+```{r warning=FALSE}
+mod.tr=tree(Exited~., data=train)
+# plot(mod.tr)
+# text(mod.tr, pretty = 0)
+
+
+mat=predict(mod.tr, newdata=test)
+
+p.tr=0
+
+for( i in 1:nrow(mat))
+{
+  p.tr[i]=ifelse(mat[i,1]>mat[i,2], 0, 1)
+}
+
+paste("The classification rate for unpruned classification tree is",mean(test$Exited==p.tr)*100,"%")    
+```
+
+
+## Examining whether pruned tree helps
+
+```{r warning=FALSE}
+prune.tr=cv.tree(mod.tr)
+plot(prune.tr$size,prune.tr$dev, type="b")
+```
+
+## Random Forest
+
+```{r}
+mod.rf=randomForest(Exited~., data=train, mtry=sqrt(ncol(train)) ,importance=T)
+p.rf=predict(mod.rf, newdata=test)
+# varImpPlot(mod.rf)
+# 
+# paste("The classification rate for  is", mean(test$Exited==p.rf)*100 ,"%")
+
+paste("The classification rate for random forest is: ",mean(test$Exited==p.rf)*100, "%")
+```
+
+## Boosting
+
+```{r message=FALSE}
+# mod.boo=gbm(Exited~., data=train, distribution = "bernoulli", n.trees = 1000)
+# summary(mod.boo)
+# 
+# p.boo=predict(mod.boo, newdata=test, type="response")
+
+```
+
+
+## Support Vector Machines
+
+```{r}
+mod.svm=svm(Exited~., data=train, kernel="radial", gamma=2)
+p.svm=predict(mod.svm, newdata=test, type="response")
+
+# summary(mod.svm)
+
+paste("The classification rate for SVM is",mean(test$Exited==p.svm)*100,"%")      
+```
+
+
+
+
+
+
+
+
+
+
